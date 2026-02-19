@@ -13,6 +13,7 @@ import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import { GitHubClient, MissingGitHubTokenError, InvalidGitHubTokenError } from "./github.js";
 import { SnapshotCache } from "./cache.js";
+import { fastLog, logger } from "./logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,7 +29,7 @@ app.use(cors({
 
 app.use((req, res, next) => {
     const sessionId = req.headers["mcp-session-id"] || req.query.sessionId || "none";
-    console.log(`${new Date().toISOString()} [${req.method}] ${req.path} (Session: ${sessionId})`);
+    fastLog(`${new Date().toISOString()} [${req.method}] ${req.path} (Session: ${sessionId})`);
 
     res.setHeader("Access-Control-Allow-Private-Network", "true");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -80,7 +81,7 @@ async function getSnapshot(repoStr: string, prNumber?: number, options?: { refre
             throw new McpError(-32011, `Invalid GITHUB_TOKEN: ${String(error.message || error)}`);
         }
         if (error instanceof McpError) throw error;
-        console.error("GitHub fetch error:", error);
+        logger.error("GitHub fetch error:", error);
         throw new McpError(ErrorCode.InternalError, `GitHub error: ${String(error?.message || error)}`);
     }
 }
@@ -91,7 +92,7 @@ const server = new Server(
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-    console.log("Handling ListToolsRequest...");
+    logger.info("Handling ListToolsRequest...");
     return {
         tools: [
             {
@@ -123,7 +124,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const repoRaw = (args?.repo ?? DEFAULT_REPO) as string;
     const repo = String(repoRaw || '').trim();
     const pr = args?.pr as number | undefined;
-    console.log(`Tool call: ${name} for ${repo} (PR: ${pr})`);
+    logger.info(`Tool call: ${name} for ${repo} (PR: ${pr})`);
     try {
         if (name === "get_dashboard_state") {
             // Tool-level mapping: support refresh flag and return structured JSON result
@@ -188,7 +189,7 @@ import sanitizeJsonRpcPayload from "./src/server/jsonrpc_sanitize.js";
 }
 
 server.connect(transport).catch(error => {
-    console.error("Failed to connect transport:", error);
+    logger.error("Failed to connect transport:", error);
 });
 
 app.all("/mcp", async (req, res) => {
@@ -212,7 +213,7 @@ app.all("/mcp", async (req, res) => {
         }
         return;
     } catch (error) {
-        console.error("MCP Request Error:", error);
+        logger.error("MCP Request Error:", error);
         if (!res.headersSent) res.status(500).json({ error: "Internal MCP error" });
     }
 });
@@ -224,13 +225,13 @@ app.use("/ui", express.static(path.join(__dirname, "../dist")));
 
 const PORT = 3001;
 const listener = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server listening on port ${PORT}`);
+    logger.info(`Server listening on port ${PORT}`);
 });
 
 process.on("unhandledRejection", (reason, promise) => {
-    console.error("Unhandled Rejection at:", promise, "reason:", reason);
+    logger.error("Unhandled Rejection at promise", { promise, reason });
 });
 
 process.on("uncaughtException", (error) => {
-    console.error("Uncaught Exception:", error);
+    logger.error("Uncaught Exception:", error);
 });

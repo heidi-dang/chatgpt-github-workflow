@@ -1,4 +1,5 @@
 import { graphql } from "@octokit/graphql";
+import { logger } from "./logger.js";
 
 export class MissingGitHubTokenError extends Error {
   constructor() {
@@ -230,7 +231,7 @@ export class GitHubClient {
       if (status === 401 || /bad credentials/i.test(msg)) {
         throw new InvalidGitHubTokenError(msg);
       }
-      console.error("GitHub Query Failed:", msg);
+      logger.error("GitHub Query Failed:", msg);
       throw error;
     }
   }
