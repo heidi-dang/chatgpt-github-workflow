@@ -1,0 +1,15 @@
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: mcp-session-id
+Access-Control-Allow-Private-Network: true
+X-Content-Type-Options: nosniff
+Content-Security-Policy: default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src *;
+content-type: application/json
+mcp-session-id: c7954a17-0d39-4990-ae72-46c167b0b901
+content-length: 153
+Date: Thu, 19 Feb 2026 06:32:01 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"result":{"protocolVersion":"2025-03-26","capabilities":{"tools":{}},"serverInfo":{"name":"workflow-monitor","version":"1.0.0"}},"jsonrpc":"2.0","id":1}

@@ -4,10 +4,11 @@ import { Snapshot } from "./github.js";
 export class SnapshotCache {
     private cache: LRUCache<string, Snapshot>;
 
-    constructor(ttlSeconds: number = 15, maxEntries: number = 100) {
+    // ttlMs: time-to-live in milliseconds (default 30s), maxEntries: max cache size
+    constructor(ttlMs: number = 30000, maxEntries: number = 100) {
         this.cache = new LRUCache({
             max: maxEntries,
-            ttl: ttlSeconds * 1000,
+            ttl: ttlMs,
         });
     }
 
@@ -22,6 +23,7 @@ export class SnapshotCache {
     }
 
     private getKey(repo: string, pr?: number): string {
+        // repo is "owner/repo"
         return pr ? `${repo}#${pr}` : repo;
     }
 }
