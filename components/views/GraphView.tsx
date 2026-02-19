@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CommitNode, CheckStatus } from '../../types';
 import { Badge } from '../ui/Badge';
 import { GitCommit, GitBranch, GitMerge, CheckCircle2, XCircle, FileCode, Search, Filter, ArrowUp, ArrowDown, ExternalLink, Activity, Plus, Minus, FilePlus, FileMinus, FileDiff, Clock, PlayCircle, AlertOctagon } from 'lucide-react';
@@ -18,12 +18,17 @@ export const GraphView: React.FC<GraphViewProps> = ({ commits }) => {
 
   const selectedCommit = commits.find(c => c.sha === selectedSha) || commits[0];
 
-  const filteredCommits = commits
-    .filter(c => c.message.toLowerCase().includes(searchQuery.toLowerCase()) || c.sha.includes(searchQuery))
-    .sort((a, b) => {
-        if (sortOrder === 'Newest') return 0; 
-        return 1;
-    });
+  const filteredCommits = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return commits
+      .filter(c =>
+        c.message.toLowerCase().includes(query) ||
+        c.sha.toLowerCase().includes(query)
+      )
+      .map(commit => ({ commit, timestamp: Date.parse(commit.date) }))
+      .sort((a, b) => sortOrder === 'Newest' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp)
+      .map(item => item.commit);
+  }, [commits, searchQuery, sortOrder]);
 
   return (
     <div className="flex flex-col h-full bg-canvas">
