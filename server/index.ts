@@ -184,14 +184,14 @@ app.all("/mcp", async (req, res) => {
         const origJson = (res as any).json?.bind(res);
 
         let chunks: Buffer[] = [];
-        // Start buffering by default for non-SSE requests; this avoids missing
-        // cases where the transport writes non-JSON bytes first and then the
-        // JSON payload in later writes. We only avoid buffering when the
-        // client requested text/event-stream or the response is SSE.
+        // We'll decide whether to buffer on the first write chunk. Treat the
+        // client as SSE-only only when Accept includes text/event-stream but
+        // does NOT also include application/json. This allows clients that
+        // accept both to still receive buffered JSON and be sanitized.
         const acceptHeader = String(req.headers['accept'] || '');
-        const sseAccepted = acceptHeader.includes('text/event-stream');
-        let decided = true;
-        let buffering = !sseAccepted;
+        const sseAccepted = acceptHeader.includes('text/event-stream') && !acceptHeader.includes('application/json');
+        let decided = false;
+        let buffering = false;
         const decideBufferingFromChunk = (chunkBuf: Buffer) => {
             // If client/server negotiate event-stream, do not buffer
             if (sseAccepted) return false;
