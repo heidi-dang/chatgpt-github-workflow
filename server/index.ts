@@ -11,6 +11,8 @@ import cors from "cors";
 import { z } from "zod";
 import path from "path";
 import { fileURLToPath } from "url";
+import { GitHubClient } from "./github.js";
+import { SnapshotCache } from "./cache.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +20,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+if (!GITHUB_TOKEN) {
+    console.warn("WARNING: GITHUB_TOKEN not set in environment.");
+}
+
+const github = new GitHubClient(GITHUB_TOKEN || "");
+const cache = new SnapshotCache(15, 100);
 
 const server = new Server(
     {
@@ -31,75 +41,27 @@ const server = new Server(
     }
 );
 
-const SAMPLE_SNAPSHOT = {
-    repo: "octocat/Hello-World",
-    focused_pr: 1347,
-    board_groups: {
-        open: [
-            {
-                pr: 1347,
-                title: "Amazing new feature",
-                head: "feat-amazing",
-                base: "main",
-                ci_state: "success",
-                short_sha: "a1b2c3d",
-                updated_rel: "2 hours ago",
-                pr_url: "https://github.com/octocat/Hello-World/pull/1347"
-            }
-        ],
-        in_review: [],
-        changes_req: [],
-        ci_failing: [],
-        mergeable: [
-            {
-                pr: 1348,
-                title: "Fix bug in calculation",
-                head: "fix-bug",
-                base: "main",
-                ci_state: "success",
-                short_sha: "e5f6g7h",
-                updated_rel: "1 day ago",
-                pr_url: "https://github.com/octocat/Hello-World/pull/1348"
-            }
-        ]
-    },
-    commits: {
-        count: 2,
-        items: [
-            {
-                sha: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-                short_sha: "a1b2c3d",
-                title: "Add amazing feature",
-                author: "octocat",
-                time_rel: "2 hours ago",
-                ci_state: "success",
-                commit_url: "https://github.com/octocat/Hello-World/commit/a1b2c3d"
-            },
-            {
-                sha: "z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0",
-                short_sha: "z9y8x7w",
-                title: "Initial commit",
-                author: "octocat",
-                time_rel: "1 day ago",
-                ci_state: "success",
-                commit_url: "https://github.com/octocat/Hello-World/commit/z9y8x7w"
-            }
-        ]
-    },
-    checks_rollup: {
-        passed: 12,
-        failed: 1,
-        running: 2,
-        top_failing: [
-            {
-                name: "Linting / checks",
-                url: "https://github.com/octocat/Hello-World/actions/runs/1"
-            }
-        ],
-        pr_url: "https://github.com/octocat/Hello-World/pull/1347"
-    },
-    last_updated_iso: new Date().toISOString()
-};
+async function getSnapshot(repoStr: string, prNumber?: number) {
+    const cached = cache.get(repoStr, prNumber);
+    if (cached) return cached;
+
+    const [owner, name] = repoStr.split("/");
+    if (!owner || !name) {
+        throw new McpError(ErrorCode.InvalidParams, "Repo must be in owner/repo format");
+    }
+
+    try {
+        const snapshot = await github.fetchSnapshot(owner, name, prNumber);
+        cache.set(repoStr, prNumber, snapshot);
+        return snapshot;
+    } catch (error: any) {
+        if (error.status === 403 || error.status === 429) {
+            // Simple rate limit handling as prescribed
+            throw new McpError(ErrorCode.InternalError, `GitHub rate limited. Retry later.`);
+        }
+        throw new McpError(ErrorCode.InternalError, `GitHub error: ${error.message}`);
+    }
+}
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
@@ -134,13 +96,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+    const repo = args?.repo as string;
+    const pr = args?.pr as number | undefined;
 
     if (name === "render_workflow_monitor") {
+        const snapshot = await getSnapshot(repo, pr);
         return {
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(SAMPLE_SNAPSHOT),
+                    text: JSON.stringify(snapshot),
                 },
             ],
             _meta: {
@@ -150,11 +115,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
         };
     } else if (name === "get_dashboard_state") {
+        const snapshot = await getSnapshot(repo, pr);
         return {
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(SAMPLE_SNAPSHOT),
+                    text: JSON.stringify(snapshot),
                 }
             ]
         };
