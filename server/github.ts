@@ -148,6 +148,7 @@ export class GitHubClient {
         hasPr: !!prNumber,
       });
 
+      const now = new Date();
       const repo = data.repository;
       if (!repo) throw new Error(`Repository ${owner}/${name} not found`);
 
@@ -172,7 +173,7 @@ export class GitHubClient {
           head: pr.headRefName,
           base: pr.baseRefName,
           updated_at: pr.updatedAt,
-          updated_rel: this.timeAgo(pr.updatedAt),
+          updated_rel: this.timeAgo(pr.updatedAt, now),
           ci_state: ciState,
           mergeable: pr.mergeable === "MERGEABLE",
           review_decision: pr.reviewDecision || "NONE",
@@ -204,7 +205,7 @@ export class GitHubClient {
             short_sha: c.oid.substring(0, 7),
             title: c.messageHeadline,
             author: c.author.user?.login || c.author.name,
-            time_rel: this.timeAgo(c.committedDate),
+            time_rel: this.timeAgo(c.committedDate, now),
             ci_state: this.mapCiState(c.statusCheckRollup?.state),
             commit_url: `https://github.com/${owner}/${name}/commit/${c.oid}`,
           };
@@ -268,9 +269,8 @@ export class GitHubClient {
     }
   }
 
-  private timeAgo(dateStr: string): string {
+  private timeAgo(dateStr: string, now: Date = new Date()): string {
     const date = new Date(dateStr);
-    const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     if (seconds < 60) return "just now";
     const minutes = Math.floor(seconds / 60);
