@@ -41,6 +41,7 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 const CACHE_TTL_MS = process.env.CACHE_TTL_MS ? Number(process.env.CACHE_TTL_MS) : 30000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const cache = new SnapshotCache(CACHE_TTL_MS, 100);
 
 // Default repo used when callers omit the repo parameter. Keeps tool robust for
@@ -153,7 +154,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             return {
                 content: [],
                 structuredContent: snapshot,
-                _meta: { ui: { resourceUri: `http://localhost:3001/index.html` } }
+                _meta: { ui: { resourceUri: `http://localhost:${PORT}/index.html` } }
             };
         }
         return { content: [], structuredContent: snapshot };
@@ -222,7 +223,6 @@ app.get("/favicon.ico", (req, res) => res.status(204).end());
 app.use(express.static(path.join(__dirname, "../dist")));
 app.use("/ui", express.static(path.join(__dirname, "../dist")));
 
-const PORT = 3001;
 const listener = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on port ${PORT}`);
 });
