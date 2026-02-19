@@ -43,13 +43,10 @@ app.use(express.json());
 const CACHE_TTL_MS = process.env.CACHE_TTL_MS ? Number(process.env.CACHE_TTL_MS) : 30000;
 const cache = new SnapshotCache(CACHE_TTL_MS, 100);
 
-<<<<<<< HEAD
 // Default repo used when callers omit the repo parameter. Keeps tool robust for
 // manual curl calls and other clients that may not supply arguments.
 const DEFAULT_REPO = 'heidi-dang/heidi-kernel';
 
-=======
->>>>>>> a7b5215 (fix(mcp): sanitize v2 tool results at transport output)
 async function getSnapshot(repoStr: string, prNumber?: number, options?: { refresh?: boolean }) {
     const refresh = options?.refresh === true;
     const cached = refresh ? undefined : cache.get(repoStr, prNumber);
@@ -171,7 +168,6 @@ const transport = new StreamableHTTPServerTransport({
     enableJsonResponse: true,
 });
 
-<<<<<<< HEAD
 import sanitizeJsonRpcPayload from "./src/server/jsonrpc_sanitize.js";
 
 // Pre-transport sanitizer: mutate outgoing JSON-RPC messages before any serialization/streaming.
@@ -200,124 +196,10 @@ app.all("/mcp", async (req, res) => {
         // Let the transport handle streaming responses. If it returns a Response-like
         // object with a text() body, sanitize that JSON before sending.
         const result: any = await (transport as any).handleRequest(req, res, req.body);
-=======
-server.connect(transport).catch(error => {
-    console.error("Failed to connect transport:", error);
-});
-
-import sanitizeJsonRpcPayload from "./src/server/jsonrpc_sanitize.js";
-
-app.all("/mcp", async (req, res) => {
-    try {
-        // The transport returns a Response-like object or handles streaming directly.
-        // Monkeypatch res.write/res.end for this request to capture JSON bodies written
-        // directly by the transport, without buffering event-stream responses.
-        const origWrite = (res as any).write?.bind(res);
-        const origEnd = (res as any).end?.bind(res);
-        const origJson = (res as any).json?.bind(res);
-
-        let chunks: Buffer[] = [];
-        let decided = false;
-        let buffering = false;
-        const acceptHeader = String(req.headers['accept'] || '');
-        const sseAccepted = acceptHeader.includes('text/event-stream');
-
-        const decideBufferingFromChunk = (chunkBuf: Buffer) => {
-            // If client/server negotiate event-stream, do not buffer
-            if (sseAccepted) return false;
-            const ct = String(res.getHeader?.('content-type') || '') || '';
-            if (ct.includes('text/event-stream')) return false;
-            if (ct.includes('application/json')) return true;
-            const s = chunkBuf.toString('utf8');
-            const first = s.trimStart().slice(0,1);
-            if (first === '{' || first === '[') return true;
-            return false;
-        };
-
-        if (origWrite && origEnd) {
-            (res as any).write = function (chunk: any, encoding?: any, cb?: any) {
-                try {
-                    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encoding || 'utf8');
-                    if (!decided) {
-                        decided = true;
-                        buffering = decideBufferingFromChunk(buf);
-                    }
-                    if (buffering) {
-                        chunks.push(buf);
-                        if (typeof cb === 'function') cb();
-                        return true;
-                    }
-                    return origWrite(chunk, encoding, cb);
-                } catch (e) {
-                    return origWrite(chunk, encoding, cb);
-                }
-            } as any;
-
-            (res as any).end = function (chunk: any, encoding?: any, cb?: any) {
-                try {
-                    if (chunk) {
-                        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encoding || 'utf8');
-                        if (!decided) {
-                            decided = true;
-                            buffering = decideBufferingFromChunk(buf);
-                        }
-                        if (buffering) chunks.push(buf);
-                        else return origEnd(chunk, encoding, cb);
-                    }
-
-                    if (!buffering) return origEnd(chunk, encoding, cb);
-
-                    const bodyBuf = Buffer.concat(chunks);
-                    const bodyStr = bodyBuf.toString('utf8');
-                    try {
-                        const parsed = JSON.parse(bodyStr);
-                        // detect whether we'll strip empty content
-                        const hadEmptyContent = !!(parsed && parsed.result && parsed.result.__schema === 'v2-object-result' && Array.isArray(parsed.result.content) && parsed.result.content.length === 0);
-                        const sanitized = sanitizeJsonRpcPayload(parsed);
-                        const out = JSON.stringify(sanitized);
-                        // set content-length to new value
-                        try { res.setHeader('content-length', Buffer.byteLength(out).toString()); } catch {}
-                        // ensure content-type
-                        if (!String(res.getHeader('content-type') || '').includes('application/json')) {
-                            try { res.setHeader('content-type', 'application/json'); } catch {}
-                        }
-                        if (hadEmptyContent) console.log('[mcp] sanitized v2-object-result: stripped empty content');
-                        return origEnd(out, 'utf8', cb);
-                    } catch (e) {
-                        // parse failed — send original body
-                        return origEnd(bodyBuf, 'utf8', cb);
-                    }
-                } catch (e) {
-                    return origEnd(chunk, encoding, cb);
-                }
-            } as any;
-        }
-
-        // Also override res.json to sanitize objects passed directly to it
-        if (origJson) {
-            (res as any).json = function (body: any) {
-                try {
-                    const beforeHadEmpty = !!(body && body.result && body.result.__schema === 'v2-object-result' && Array.isArray(body.result.content) && body.result.content.length === 0);
-                    const sanitized = sanitizeJsonRpcPayload(body);
-                    if (beforeHadEmpty) console.log('[mcp] sanitized v2-object-result: stripped empty content');
-                    return origJson(sanitized);
-                } catch (err) {
-                    return origJson(body);
-                }
-            } as any;
-        }
-
-        // Call into transport. It may either return a Response-like object or write
-        // directly to `res`.
-        const result: any = await (transport as any).handleRequest(req, res, req.body);
-
-        // If the transport returned a Response (Web standard) with JSON body, extract and sanitize
->>>>>>> a7b5215 (fix(mcp): sanitize v2 tool results at transport output)
         if (result && typeof result === 'object' && typeof result.text === 'function') {
             try {
                 const raw = await result.text();
                 const parsed = JSON.parse(raw);
-<<<<<<< HEAD
                 sanitizeJsonRpcPayload(parsed);
                 // mirror headers/status from transport result
                 const mcpHeader = result.headers && typeof result.headers.get === 'function' ? result.headers.get('mcp-session-id') : undefined;
@@ -328,30 +210,6 @@ app.all("/mcp", async (req, res) => {
                 // fallthrough to letting transport handle streaming directly
             }
         }
-=======
-                const hadEmptyContent = !!(parsed && parsed.result && parsed.result.__schema === 'v2-object-result' && Array.isArray(parsed.result.content) && parsed.result.content.length === 0);
-                const sanitized = sanitizeJsonRpcPayload(parsed);
-                if (hadEmptyContent) console.log('[mcp] sanitized v2-object-result: stripped empty content');
-                // mirror headers/status from transport result
-                const headers: Record<string,string> = {};
-                const mcpHeader = result.headers && typeof result.headers.get === 'function' ? result.headers.get('mcp-session-id') : undefined;
-                if (mcpHeader) headers['mcp-session-id'] = mcpHeader;
-                // restore original res.json/end/write before using express responder
-                if (origJson) (res as any).json = origJson;
-                if (origWrite) (res as any).write = origWrite;
-                if (origEnd) (res as any).end = origEnd;
-                res.set(headers).status(result.status || 200).json(sanitized);
-                return;
-            } catch (e) {
-                // fallthrough to letting transport handle streaming response
-            }
-        }
-
-        // restore originals now that transport has either written or will write
-        if (origJson) (res as any).json = origJson;
-        if (origWrite) (res as any).write = origWrite;
-        if (origEnd) (res as any).end = origEnd;
->>>>>>> a7b5215 (fix(mcp): sanitize v2 tool results at transport output)
         return;
     } catch (error) {
         console.error("MCP Request Error:", error);
