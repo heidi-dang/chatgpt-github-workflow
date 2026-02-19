@@ -1,0 +1,5 @@
+{
+  "name": "Workflow Monitor",
+  "description": "Interactive GitHub PR and Workflow visualization widget for tracking CI/CD, code reviews, and development pipelines.",
+  "requestFramePermissions": []
+}
