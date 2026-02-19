@@ -7,7 +7,7 @@ import { ChecksView } from './components/views/ChecksView';
 import { TeamView } from './components/views/TeamView';
 import { SettingsView } from './components/views/SettingsView';
 import { ChatGptUiView } from './components/views/ChatGptUiView'; // Import new view
-import { RefreshCw, Maximize2, GitPullRequest, Search } from 'lucide-react';
+import { RefreshCw, Maximize2, GitPullRequest } from 'lucide-react';
 
 const App: React.FC = () => {
   // State
