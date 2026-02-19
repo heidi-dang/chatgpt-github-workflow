@@ -43,6 +43,10 @@ app.use(express.json());
 const CACHE_TTL_MS = process.env.CACHE_TTL_MS ? Number(process.env.CACHE_TTL_MS) : 30000;
 const cache = new SnapshotCache(CACHE_TTL_MS, 100);
 
+// Default repo used when callers omit the repo parameter. Keeps tool robust for
+// manual curl calls and other clients that may not supply arguments.
+const DEFAULT_REPO = 'heidi-dang/heidi-kernel';
+
 async function getSnapshot(repoStr: string, prNumber?: number, options?: { refresh?: boolean }) {
     const refresh = options?.refresh === true;
     const cached = refresh ? undefined : cache.get(repoStr, prNumber);
@@ -114,7 +118,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    const repo = args?.repo as string;
+    // Make repo default to DEFAULT_REPO when missing and normalize. Fail-closed
+    // if the repo doesn't look like owner/name.
+    const repoRaw = (args?.repo ?? DEFAULT_REPO) as string;
+    const repo = String(repoRaw || '').trim();
     const pr = args?.pr as number | undefined;
     console.log(`Tool call: ${name} for ${repo} (PR: ${pr})`);
     try {
@@ -177,11 +184,14 @@ app.all("/mcp", async (req, res) => {
         const origJson = (res as any).json?.bind(res);
 
         let chunks: Buffer[] = [];
-        let decided = false;
-        let buffering = false;
+        // Start buffering by default for non-SSE requests; this avoids missing
+        // cases where the transport writes non-JSON bytes first and then the
+        // JSON payload in later writes. We only avoid buffering when the
+        // client requested text/event-stream or the response is SSE.
         const acceptHeader = String(req.headers['accept'] || '');
         const sseAccepted = acceptHeader.includes('text/event-stream');
-
+        let decided = true;
+        let buffering = !sseAccepted;
         const decideBufferingFromChunk = (chunkBuf: Buffer) => {
             // If client/server negotiate event-stream, do not buffer
             if (sseAccepted) return false;
