@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PRCard, CommitNode, CheckRun, PRStatus, CheckStatus } from '../../types';
 import { Badge } from '../ui/Badge';
-import { GitPullRequest, GitCommit, AlertOctagon, ExternalLink, RefreshCw, CheckCircle2, PlayCircle, XCircle, ArrowRight } from 'lucide-react';
+import { AlertOctagon, ExternalLink, RefreshCw, CheckCircle2, PlayCircle, XCircle, ArrowRight } from 'lucide-react';
 
 interface ChatGptUiViewProps {
   prs: PRCard[];
