@@ -38,7 +38,7 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 const CACHE_TTL_MS = process.env.CACHE_TTL_MS ? Number(process.env.CACHE_TTL_MS) : 30000;
 const cache = new SnapshotCache(CACHE_TTL_MS, 100);
