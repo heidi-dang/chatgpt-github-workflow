@@ -43,6 +43,10 @@ app.use(express.json());
 const CACHE_TTL_MS = process.env.CACHE_TTL_MS ? Number(process.env.CACHE_TTL_MS) : 30000;
 const cache = new SnapshotCache(CACHE_TTL_MS, 100);
 
+// Shared GitHubClient instance to avoid repeated instantiation
+let globalGitHubClient: GitHubClient | null = null;
+let lastUsedToken: string | undefined = undefined;
+
 // Default repo used when callers omit the repo parameter. Keeps tool robust for
 // manual curl calls and other clients that may not supply arguments.
 const DEFAULT_REPO = 'heidi-dang/heidi-kernel';
@@ -61,7 +65,13 @@ async function getSnapshot(repoStr: string, prNumber?: number, options?: { refre
         const token = process.env.GITHUB_TOKEN;
         let github: GitHubClient;
         try {
-            github = new GitHubClient(token);
+            if (globalGitHubClient && lastUsedToken === token) {
+                github = globalGitHubClient;
+            } else {
+                github = new GitHubClient(token);
+                globalGitHubClient = github;
+                lastUsedToken = token;
+            }
         } catch (e: any) {
             if (e instanceof MissingGitHubTokenError) {
                 throw new McpError(-32010, "Missing GITHUB_TOKEN environment variable. Create a fine-grained PAT and set GITHUB_TOKEN before calling GitHub-backed tools.");
